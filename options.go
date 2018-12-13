@@ -74,7 +74,7 @@ func WithRouter() Option {
 	return func(r *Runtime) *Runtime {
 		check.AddLivenessCheck("goroutine_threshold_300", healthcheck.GoroutineCountCheck(300))
 		check.AddReadinessCheck("grpc_listener_health_check", healthcheck.TCPDialCheck(viper.GetString("grpc_port"), 1*time.Second))
-
+		check.AddReadinessCheck("db_health_check", healthcheck.TCPDialCheck(viper.GetString("db_port"), 1*time.Second))
 		r.Router = http.NewServeMux()
 		r.Router.Handle("/metrics", promhttp.Handler())
 		r.Router.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
