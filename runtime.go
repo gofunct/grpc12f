@@ -1,4 +1,4 @@
-package runtime
+package grpc12factor
 
 import (
 	"context"

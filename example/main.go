@@ -3,14 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/gofunct/runtime"
+	"github.com/gofunct/grpc12factor"
 	"github.com/prometheus/common/log"
 )
 
 func main() {
 	ctx := context.TODO()
-	run := runtime.NewRuntime()
-	run = runtime.Compose(runtime.NewRuntime())
+	run := grpc12factor.NewRuntime()
+	run = grpc12factor.Compose(grpc12factor.NewRuntime())
 
 	api := newDemoServer()
 	RegisterDemoServiceServer(run.Server, api)
