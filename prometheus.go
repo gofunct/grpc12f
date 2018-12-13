@@ -20,14 +20,6 @@ type MetricsIntercept struct {
 	trackPeers bool
 }
 
-// NewMetricsIntercept implements both prometheus Collector interface and methods required by grpc MetricsIntercept.
-func NewMetricsIntercept() *MetricsIntercept {
-	return &MetricsIntercept{
-		monitoring: initMonitoring(true),
-		trackPeers: true,
-	}
-}
-
 func RegisterMetricsIntercept(s *grpc.Server, i *MetricsIntercept) (err error) {
 	if i.trackPeers {
 		return nil

@@ -4,10 +4,12 @@ require (
 	github.com/BurntSushi/toml v0.3.1 // indirect
 	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect
 	github.com/go-pg/pg v6.15.1+incompatible
-	github.com/gofrs/uuid v3.1.0+incompatible
+	github.com/gofrs/uuid v3.1.0+incompatible // indirect
 	github.com/gogo/protobuf v1.2.0 // indirect
+	github.com/golang/protobuf v1.2.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.0.0
-	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
+	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
+	github.com/heptiolabs/healthcheck v0.0.0-20180807145615-6ff867650f40
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jinzhu/inflection v0.0.0-20180308033659-04140366298a // indirect
 	github.com/onsi/ginkgo v1.7.0 // indirect
