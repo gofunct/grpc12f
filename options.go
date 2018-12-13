@@ -76,12 +76,22 @@ func WithRouter() Option {
 		check.AddReadinessCheck("grpc_listener_health_check", healthcheck.TCPDialCheck(viper.GetString("grpc_port"), 1*time.Second))
 		check.AddReadinessCheck("db_health_check", healthcheck.TCPDialCheck(viper.GetString("db_port"), 1*time.Second))
 		r.Router = http.NewServeMux()
+		r.Router.HandleFunc("/live", check.LiveEndpoint)
+		r.Log.Debug("liveness endpoint registered:", zap.String("endpoint", viper.GetString("grpc_debug_port")+"/live"))
+		r.Router.HandleFunc("/ready", check.ReadyEndpoint)
+		r.Log.Debug("readiness endpoint registered:", zap.String("endpoint", viper.GetString("grpc_debug_port")+"/ready"))
 		r.Router.Handle("/metrics", promhttp.Handler())
+		r.Log.Debug("metrics endpoint registered:", zap.String("endpoint", viper.GetString("grpc_debug_port")+"/metrics"))
 		r.Router.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
+		r.Log.Debug("debug endpoint registered:", zap.String("endpoint", viper.GetString("grpc_debug_port")+"/debug/pprof"))
 		r.Router.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
+		r.Log.Debug("debug cmdline endpoint registered:", zap.String("endpoint", viper.GetString("grpc_debug_port")+"/debug/pprof/cmdline"))
 		r.Router.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
+		r.Log.Debug("debug profile endpoint registered:", zap.String("endpoint", viper.GetString("grpc_debug_port")+"/debug/pprof/profile"))
 		r.Router.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
+		r.Log.Debug("debug symbol endpoint registered:", zap.String("endpoint", viper.GetString("grpc_debug_port")+"/debug/pprof/symbol"))
 		r.Router.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
+		r.Log.Debug("debug trace endpoint registered:", zap.String("endpoint", viper.GetString("grpc_debug_port")+"/debug/pprof/trace"))
 		return r
 	}
 
