@@ -63,35 +63,55 @@ func WithLogger() Option {
 		if err != nil {
 			panic(err)
 		}
-		r.Log.With(zap.Bool("grpc_log", true), zap.Any("config", viper.AllSettings()))
+		r.Log.With(
+			zap.Bool("grpc_log", true),
+			zap.String("grpc_port", viper.GetString("grpc_port")),
+			zap.String("db_port", viper.GetString("db_port")),
+			zap.String("db_name", viper.GetString("db_name")),
+			zap.String("db_name", viper.GetString("db_user")),
+		)
+
+		zap.ReplaceGlobals(r.Log)
+		r.Log.Debug("global logger successfully registered")
 		return r
 	}
 }
 
 func WithRouter() Option {
 	check := healthcheck.NewMetricsHandler(prometheus.DefaultRegisterer, "runtime")
-
 	return func(r *Runtime) *Runtime {
-		check.AddLivenessCheck("goroutine_threshold_300", healthcheck.GoroutineCountCheck(300))
-		check.AddReadinessCheck("grpc_listener_health_check", healthcheck.TCPDialCheck(viper.GetString("grpc_port"), 1*time.Second))
-		check.AddReadinessCheck("db_health_check", healthcheck.TCPDialCheck(viper.GetString("db_port"), 1*time.Second))
+
 		r.Router = http.NewServeMux()
-		r.Router.HandleFunc("/live", check.LiveEndpoint)
-		r.Log.Debug("liveness endpoint registered:", zap.String("endpoint", viper.GetString("grpc_debug_port")+"/live"))
-		r.Router.HandleFunc("/ready", check.ReadyEndpoint)
-		r.Log.Debug("readiness endpoint registered:", zap.String("endpoint", viper.GetString("grpc_debug_port")+"/ready"))
-		r.Router.Handle("/metrics", promhttp.Handler())
-		r.Log.Debug("metrics endpoint registered:", zap.String("endpoint", viper.GetString("grpc_debug_port")+"/metrics"))
-		r.Router.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
-		r.Log.Debug("debug endpoint registered:", zap.String("endpoint", viper.GetString("grpc_debug_port")+"/debug/pprof"))
-		r.Router.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
-		r.Log.Debug("debug cmdline endpoint registered:", zap.String("endpoint", viper.GetString("grpc_debug_port")+"/debug/pprof/cmdline"))
-		r.Router.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
-		r.Log.Debug("debug profile endpoint registered:", zap.String("endpoint", viper.GetString("grpc_debug_port")+"/debug/pprof/profile"))
-		r.Router.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
-		r.Log.Debug("debug symbol endpoint registered:", zap.String("endpoint", viper.GetString("grpc_debug_port")+"/debug/pprof/symbol"))
-		r.Router.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
-		r.Log.Debug("debug trace endpoint registered:", zap.String("endpoint", viper.GetString("grpc_debug_port")+"/debug/pprof/trace"))
+		if viper.GetBool("live_endpoint") {
+			check.AddLivenessCheck("goroutine_threshold", healthcheck.GoroutineCountCheck(viper.GetInt("routine_threshold")))
+			r.Router.HandleFunc("/live", check.LiveEndpoint)
+			r.Log.Debug("liveness endpoint successfully registered:", zap.String("endpoint", viper.GetString("grpc_port")+"/live"))
+		}
+
+		if viper.GetBool("ready_endpoint") {
+			check.AddReadinessCheck("grpc_listener_health_check", healthcheck.TCPDialCheck(viper.GetString("grpc_port"), 1*time.Second))
+			check.AddReadinessCheck("db_health_check", healthcheck.TCPDialCheck(viper.GetString("db_port"), 1*time.Second))
+			r.Router.HandleFunc("/ready", check.ReadyEndpoint)
+			r.Log.Debug("readiness endpoint successfully registered:", zap.String("endpoint", viper.GetString("grpc_port")+"/ready"))
+		}
+		if viper.GetBool("pprof_endpoint") {
+			r.Router.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
+			r.Log.Debug("debug endpoint successfully registered:", zap.String("endpoint", viper.GetString("grpc_port")+"/debug/pprof"))
+			r.Router.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
+			r.Log.Debug("debug cmdline endpoint successfully registered:", zap.String("endpoint", viper.GetString("grpc_port")+"/debug/pprof/cmdline"))
+			r.Router.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
+			r.Log.Debug("debug profile endpoint successfully registered:", zap.String("endpoint", viper.GetString("grpc_port")+"/debug/pprof/profile"))
+			r.Router.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
+			r.Log.Debug("debug symbol endpoint successfully registered:", zap.String("endpoint", viper.GetString("grpc_port")+"/debug/pprof/symbol"))
+			r.Router.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
+			r.Log.Debug("debug trace endpoint successfully registered:", zap.String("endpoint", viper.GetString("grpc_port")+"/debug/pprof/trace"))
+		}
+
+		if viper.GetBool("metrics_endpoint") {
+			r.Router.Handle("/metrics", promhttp.Handler())
+			r.Log.Debug("metrics endpoint successfully registered:", zap.String("endpoint", viper.GetString("grpc_port")+"/metrics"))
+		}
+
 		return r
 	}
 
@@ -106,7 +126,7 @@ func WithTracer() Option {
 			log.Fatal("failed to read jaeger config from environment")
 		}
 		cfg.ServiceName = "runtime"
-		cfg.RPCMetrics = true
+		cfg.RPCMetrics = viper.GetBool("jaeger_metrics")
 
 		tracer, r.Closer, err = cfg.NewTracer()
 		if err != nil {
@@ -120,11 +140,11 @@ func WithTracer() Option {
 
 }
 
-func WithServer(peers bool) Option {
+func WithServer() Option {
 	return func(r *Runtime) *Runtime {
-		r.Metrics = &MetricsIntercept{
-			monitoring: initMonitoring(peers),
-			trackPeers: peers,
+		metrics := &MetricsIntercept{
+			monitoring: initMonitoring(viper.GetBool("monitor_peers")),
+			trackPeers: viper.GetBool("monitor_peers"),
 		}
 		grpc_zap.ReplaceGrpcLogger(zap.L())
 		zopts := []grpc_zap.Option{
@@ -138,22 +158,22 @@ func WithServer(peers bool) Option {
 			grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(
 				grpc_ctxtags.StreamServerInterceptor(grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)),
 				grpc_opentracing.StreamServerInterceptor(grpc_opentracing.WithTracer(opentracing.GlobalTracer())),
-				r.Metrics.StreamServer(),
+				metrics.StreamServer(),
 				grpc_zap.StreamServerInterceptor(zap.L(), zopts...),
 			)),
 			grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
 				grpc_ctxtags.UnaryServerInterceptor(grpc_ctxtags.WithFieldExtractor(grpc_ctxtags.CodeGenRequestFieldExtractor)),
 				grpc_opentracing.UnaryServerInterceptor(grpc_opentracing.WithTracer(opentracing.GlobalTracer())),
-				r.Metrics.UnaryServer(),
+				metrics.UnaryServer(),
 				grpc_zap.UnaryServerInterceptor(zap.L(), zopts...),
 			)),
 		)
 
 		grpc_health_v1.RegisterHealthServer(s, health.NewServer())
-		RegisterMetricsIntercept(s, r.Metrics)
+		r.Log.Debug("grpc healthcheck service successfully registered")
+		RegisterMetricsIntercept(s, metrics)
 		r.Server = s
 		return r
 
 	}
-
 }

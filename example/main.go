@@ -4,21 +4,17 @@ import (
 	"context"
 	"fmt"
 	"github.com/gofunct/runtime"
+	"github.com/prometheus/common/log"
 )
 
 func main() {
-	run := runtime.Compose(
-		runtime.WithLogger(),
-		runtime.WithTracer(),
-		runtime.WithRouter(),
-		runtime.WithStore(),
-		runtime.WithRootCmd(),
-		runtime.WithServer(true),
-	)
+	ctx := context.TODO()
+	run := runtime.NewRuntime()
+	run = runtime.Compose(runtime.NewRuntime())
 
 	api := newDemoServer()
 	RegisterDemoServiceServer(run.Server, api)
-	run.Serve()
+	log.Fatal(run.Serve(ctx))
 }
 
 // DemoServiceServer defines a Server.
