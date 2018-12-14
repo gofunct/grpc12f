@@ -1,0 +1,15 @@
+db_host: localhost
+db_name: postgresdb
+db_port: :5432
+db_user: admin
+grpc_port: :8443
+jaeger_metrics: false
+live_endpoint: false
+metrics_endpoint: true
+monitor_peers: true
+pprof_endpoint: true
+ready_endpoint: false
+routine_threshold: 300
+swaggerfile: swagger.json
+tls: false
+tracing: true
