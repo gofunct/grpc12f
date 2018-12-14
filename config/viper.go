@@ -1,4 +1,4 @@
-package grpc12factor
+package config
 
 import (
 	"github.com/spf13/viper"

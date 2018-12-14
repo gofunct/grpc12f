@@ -2,11 +2,12 @@ package grpc12factor
 
 import (
 	"context"
-	"fmt"
 	"github.com/go-pg/pg"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"github.com/gofunct/grpc12factor/config"
+	"github.com/gofunct/grpc12factor/store"
+	"github.com/gofunct/grpc12factor/trace"
+	"github.com/gofunct/grpc12factor/transport"
 	"github.com/soheilhy/cmux"
-	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/acme/autocert"
@@ -20,63 +21,39 @@ import (
 	"os/signal"
 )
 
-func init() { SetupViper() }
+func init() { config.SetupViper() }
 
 type Runtime struct {
-	Log      *zap.Logger
-	RootCmd  *cobra.Command
-	Server   *grpc.Server
-	Debug    *http.Server
-	Store    *pg.DB
-	Router   *http.ServeMux
-	Gate     *runtime.ServeMux
-	DialOpts []grpc.DialOption
-	Closer   io.Closer
+	Log    *zap.Logger
+	Server *grpc.Server
+	Debug  *http.Server
+	Store  *pg.DB
+	Router *http.ServeMux
+	Closer io.Closer
 }
 
-func NewRuntime() *Runtime {
-	return &Runtime{}
-}
-
-func Compose(r *Runtime) *Runtime {
-
-	if r.Log == nil {
-		o := WithLogger()
-		r = o(r)
-	}
-	if r.RootCmd == nil {
-		o := WithRootCmd()
-		r = o(r)
-	}
-	if r.Server == nil {
-		o := WithServer()
-		r = o(r)
-	}
-	if r.Store == nil {
-		o := WithStore()
-		r = o(r)
-	}
-	if r.Router == nil {
-		o := WithRouter()
-		r = o(r)
-	}
-	if r.DialOpts == nil {
-		o := WithDialer()
-		r = o(r)
-	}
-	if r.Closer == nil {
-		o := WithTracer()
-		r = o(r)
+func NewRuntime() (*Runtime, error) {
+	var err error
+	r := &Runtime{}
+	r.Log, err = zap.NewDevelopment()
+	if err != nil {
+		return nil, err
 	}
 
-	return r
-}
+	r.Router = transport.NewMux()
 
-func (r *Runtime) Execute() {
-	if err := r.RootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+	r.Debug = &http.Server{
+		Handler: r.Router,
 	}
+	r.Closer, err = trace.NewTracer("grpc_server")
+	if err != nil {
+		return nil, err
+	}
+	r.Store = store.NewStore()
+
+	r.Server = transport.NewGrpc()
+
+	return r, err
 }
 
 func (r *Runtime) Serve(ctx context.Context) error {

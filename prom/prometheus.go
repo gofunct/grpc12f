@@ -1,4 +1,4 @@
-package grpc12factor
+package prom
 
 import (
 	"net"
@@ -16,12 +16,12 @@ import (
 
 // MetricsIntercept ...
 type MetricsIntercept struct {
-	monitoring *monitoring
-	trackPeers bool
+	Monitoring *Monitoring
+	TrackPeers bool
 }
 
 func RegisterMetricsIntercept(s *grpc.Server, i *MetricsIntercept) (err error) {
-	if i.trackPeers {
+	if i.TrackPeers {
 		return nil
 	}
 
@@ -43,22 +43,22 @@ func RegisterMetricsIntercept(s *grpc.Server, i *MetricsIntercept) (err error) {
 				}
 
 				// server
-				if _, err = i.monitoring.server.errors.GetMetricWith(requestLabels); err != nil {
+				if _, err = i.Monitoring.server.errors.GetMetricWith(requestLabels); err != nil {
 					return err
 				}
-				if _, err = i.monitoring.server.requestsTotal.GetMetricWith(requestLabels); err != nil {
+				if _, err = i.Monitoring.server.requestsTotal.GetMetricWith(requestLabels); err != nil {
 					return err
 				}
-				if _, err = i.monitoring.server.requestDuration.GetMetricWith(requestLabels); err != nil {
+				if _, err = i.Monitoring.server.requestDuration.GetMetricWith(requestLabels); err != nil {
 					return err
 				}
 				if m.IsClientStream {
-					if _, err = i.monitoring.server.messagesReceived.GetMetricWith(messageLabels); err != nil {
+					if _, err = i.Monitoring.server.messagesReceived.GetMetricWith(messageLabels); err != nil {
 						return err
 					}
 				}
 				if m.IsServerStream {
-					if _, err = i.monitoring.server.messagesSend.GetMetricWith(messageLabels); err != nil {
+					if _, err = i.Monitoring.server.messagesSend.GetMetricWith(messageLabels); err != nil {
 						return err
 					}
 				}
@@ -71,14 +71,14 @@ func RegisterMetricsIntercept(s *grpc.Server, i *MetricsIntercept) (err error) {
 // Dialer ...
 func (i *MetricsIntercept) Dialer(f func(string, time.Duration) (net.Conn, error)) func(string, time.Duration) (net.Conn, error) {
 	return func(addr string, timeout time.Duration) (net.Conn, error) {
-		i.monitoring.dialer.WithLabelValues(addr).Inc()
+		i.Monitoring.dialer.WithLabelValues(addr).Inc()
 		return f(addr, timeout)
 	}
 }
 
 // UnaryClient ...
 func (i *MetricsIntercept) UnaryClient() grpc.UnaryClientInterceptor {
-	monitor := i.monitoring.client
+	monitor := i.Monitoring.client
 
 	return func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 		start := time.Now()
@@ -105,7 +105,7 @@ func (i *MetricsIntercept) UnaryClient() grpc.UnaryClientInterceptor {
 
 // StreamClient ...
 func (i *MetricsIntercept) StreamClient() grpc.StreamClientInterceptor {
-	monitor := i.monitoring.client
+	monitor := i.Monitoring.client
 
 	return func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
 		start := time.Now()
@@ -135,7 +135,7 @@ func (i *MetricsIntercept) StreamClient() grpc.StreamClientInterceptor {
 
 // UnaryServer ...
 func (i *MetricsIntercept) UnaryServer() grpc.UnaryServerInterceptor {
-	monitor := i.monitoring.server
+	monitor := i.Monitoring.server
 
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		start := time.Now()
@@ -150,7 +150,7 @@ func (i *MetricsIntercept) UnaryServer() grpc.UnaryServerInterceptor {
 			"code":    code.String(),
 			"type":    "unary",
 		}
-		if i.trackPeers {
+		if i.TrackPeers {
 			labels["peer"] = peerValue(ctx)
 		}
 		if err != nil && code != codes.OK {
@@ -166,7 +166,7 @@ func (i *MetricsIntercept) UnaryServer() grpc.UnaryServerInterceptor {
 
 // StreamServer ...
 func (i *MetricsIntercept) StreamServer() grpc.StreamServerInterceptor {
-	monitor := i.monitoring.server
+	monitor := i.Monitoring.server
 
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		start := time.Now()
@@ -176,7 +176,7 @@ func (i *MetricsIntercept) StreamServer() grpc.StreamServerInterceptor {
 			"service": service,
 			"handler": method,
 		}
-		if i.trackPeers {
+		if i.TrackPeers {
 			if ss != nil {
 				streamLabels["peer"] = peerValue(ss.Context())
 			} else {
@@ -192,7 +192,7 @@ func (i *MetricsIntercept) StreamServer() grpc.StreamServerInterceptor {
 			"code":    code.String(),
 			"type":    handlerType(info.IsClientStream, info.IsServerStream),
 		}
-		if i.trackPeers {
+		if i.TrackPeers {
 			if ss != nil {
 				labels["peer"] = peerValue(ss.Context())
 			} else {
@@ -213,16 +213,16 @@ func (i *MetricsIntercept) StreamServer() grpc.StreamServerInterceptor {
 
 // Describe implements prometheus Collector interface.
 func (i *MetricsIntercept) Describe(in chan<- *prometheus.Desc) {
-	i.monitoring.dialer.Describe(in)
-	i.monitoring.server.Describe(in)
-	i.monitoring.client.Describe(in)
+	i.Monitoring.dialer.Describe(in)
+	i.Monitoring.server.Describe(in)
+	i.Monitoring.client.Describe(in)
 }
 
 // Collect implements prometheus Collector interface.
 func (i *MetricsIntercept) Collect(in chan<- prometheus.Metric) {
-	i.monitoring.dialer.Collect(in)
-	i.monitoring.server.Collect(in)
-	i.monitoring.client.Collect(in)
+	i.Monitoring.dialer.Collect(in)
+	i.Monitoring.server.Collect(in)
+	i.Monitoring.client.Collect(in)
 }
 
 type ctxKey int
@@ -250,15 +250,15 @@ func (i *MetricsIntercept) HandleRPC(ctx context.Context, stat stats.RPCStats) {
 	switch in := stat.(type) {
 	case *stats.Begin:
 		if in.IsClient() {
-			i.monitoring.client.requests.With(lab).Inc()
+			i.Monitoring.client.requests.With(lab).Inc()
 		} else {
-			i.monitoring.server.requests.With(lab).Inc()
+			i.Monitoring.server.requests.With(lab).Inc()
 		}
 	case *stats.End:
 		if in.IsClient() {
-			i.monitoring.client.requests.With(lab).Dec()
+			i.Monitoring.client.requests.With(lab).Dec()
 		} else {
-			i.monitoring.server.requests.With(lab).Dec()
+			i.Monitoring.server.requests.With(lab).Dec()
 		}
 	}
 }
@@ -278,20 +278,20 @@ func (i *MetricsIntercept) HandleConn(ctx context.Context, stat stats.ConnStats)
 	switch in := stat.(type) {
 	case *stats.ConnBegin:
 		if in.IsClient() {
-			i.monitoring.client.connections.With(lab).Inc()
+			i.Monitoring.client.connections.With(lab).Inc()
 		} else {
-			i.monitoring.server.connections.With(lab).Inc()
+			i.Monitoring.server.connections.With(lab).Inc()
 		}
 	case *stats.ConnEnd:
 		if in.IsClient() {
-			i.monitoring.client.connections.With(lab).Dec()
+			i.Monitoring.client.connections.With(lab).Dec()
 		} else {
-			i.monitoring.server.connections.With(lab).Dec()
+			i.Monitoring.server.connections.With(lab).Dec()
 		}
 	}
 }
 
-type monitoring struct {
+type Monitoring struct {
 	dialer *prometheus.CounterVec
 	server *monitor
 	client *monitor
@@ -339,7 +339,7 @@ func (m *monitor) Collect(in chan<- prometheus.Metric) {
 	m.errors.Collect(in)
 }
 
-func initMonitoring(trackPeers bool) *monitoring {
+func InitMonitoring(TrackPeers bool) *Monitoring {
 	dialer := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "grpc",
@@ -375,7 +375,7 @@ func initMonitoring(trackPeers bool) *monitoring {
 			Name:      "requests_total",
 			Help:      "Total number of RPC requests received by server.",
 		},
-		appendIf(trackPeers, []string{"service", "handler", "code", "type"}, "peer"),
+		appendIf(TrackPeers, []string{"service", "handler", "code", "type"}, "peer"),
 	)
 	serverReceivedMessages := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -384,7 +384,7 @@ func initMonitoring(trackPeers bool) *monitoring {
 			Name:      "received_messages_total",
 			Help:      "Total number of RPC messages received by server.",
 		},
-		appendIf(trackPeers, []string{"service", "handler"}, "peer"),
+		appendIf(TrackPeers, []string{"service", "handler"}, "peer"),
 	)
 	serverSendMessages := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -393,7 +393,7 @@ func initMonitoring(trackPeers bool) *monitoring {
 			Name:      "send_messages_total",
 			Help:      "Total number of RPC messages send by server.",
 		},
-		appendIf(trackPeers, []string{"service", "handler"}, "peer"),
+		appendIf(TrackPeers, []string{"service", "handler"}, "peer"),
 	)
 	serverRequestDuration := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -402,7 +402,7 @@ func initMonitoring(trackPeers bool) *monitoring {
 			Name:      "request_duration_seconds",
 			Help:      "The RPC request latencies in seconds on server side.",
 		},
-		appendIf(trackPeers, []string{"service", "handler", "code", "type"}, "peer"),
+		appendIf(TrackPeers, []string{"service", "handler", "code", "type"}, "peer"),
 	)
 	serverErrors := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -411,7 +411,7 @@ func initMonitoring(trackPeers bool) *monitoring {
 			Name:      "errors_total",
 			Help:      "Total number of errors that happen during RPC calles on server side.",
 		},
-		appendIf(trackPeers, []string{"service", "handler", "code", "type"}, "peer"),
+		appendIf(TrackPeers, []string{"service", "handler", "code", "type"}, "peer"),
 	)
 
 	clientConnections := prometheus.NewGaugeVec(
@@ -478,7 +478,7 @@ func initMonitoring(trackPeers bool) *monitoring {
 		[]string{"service", "handler", "code", "type"},
 	)
 
-	return &monitoring{
+	return &Monitoring{
 		dialer: dialer,
 		server: &monitor{
 			connections:      serverConnections,
