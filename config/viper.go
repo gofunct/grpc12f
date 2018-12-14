@@ -15,17 +15,17 @@ func SetupViper() {
 	viper.SetDefault("tracing", true)
 	viper.SetDefault("tls", false)
 	viper.SetDefault("metrics_endpoint", true)
-	viper.SetDefault("live_endpoint", false)
-	viper.SetDefault("ready_endpoint", false)
+	viper.SetDefault("live_endpoint", true)
+	viper.SetDefault("ready_endpoint", true)
 	viper.SetDefault("pprof_endpoint", true)
 	viper.SetDefault("db_host", "localhost")
 	viper.SetDefault("db_port", ":5432")
 	viper.SetDefault("db_name", "postgresdb")
 	viper.SetDefault("db_user", "admin")
 	viper.SetDefault("grpc_port", ":8443")
+	viper.SetDefault("gw_port", ":8080")
 	viper.SetDefault("routine_threshold", 300)
-	viper.SetDefault("jaeger_metrics", false)
-	viper.SetDefault("monitor_peers", true)
+	viper.SetDefault("jaeger_metrics", true)
 	viper.SetDefault("swaggerfile", "swagger.json")
 
 	// If a config file is found, read it in.
@@ -45,7 +45,7 @@ func SetupViper() {
 	}
 
 	if viper.GetBool("tls") == true {
-		viper.Set("grpc_port", ":443")
+		viper.Set("gw_port", ":443")
 		if err := viper.WriteConfig(); err != nil {
 			log.Fatal("failed to rewrite config")
 			os.Exit(1)

@@ -26,5 +26,4 @@ func NewTracer(service string) (io.Closer, error) {
 		return closer, err
 	}
 
-}
 

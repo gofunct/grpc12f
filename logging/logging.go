@@ -23,4 +23,3 @@ func NewLogger() *zap.Logger {
 		log.Debug("global logger successfully registered")
 		return log
 	}
-}

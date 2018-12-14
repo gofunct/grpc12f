@@ -14,19 +14,14 @@ import (
 func NewGWMux() (*http.ServeMux, *runtime.ServeMux) {
 	mux := http.NewServeMux()
 	gw := runtime.NewServeMux()
-	mux.HandleFunc("/swagger.json", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, viper.GetString("swaggerfile"))
-	})
 	mux.Handle("/", gw)
-
-	check := healthcheck.NewMetricsHandler(prometheus.DefaultRegisterer, "runtime")
+	check := healthcheck.NewMetricsHandler(prometheus.DefaultRegisterer, "gateway")
 	if viper.GetBool("live_endpoint") {
 		check.AddLivenessCheck("goroutine_threshold", healthcheck.GoroutineCountCheck(viper.GetInt("routine_threshold")))
 		mux.HandleFunc("/live", check.LiveEndpoint)
 	}
 
 	if viper.GetBool("ready_endpoint") {
-		check.AddReadinessCheck("grpc_listener_health_check", healthcheck.TCPDialCheck(viper.GetString("grpc_port"), 1*time.Second))
 		check.AddReadinessCheck("db_health_check", healthcheck.TCPDialCheck(viper.GetString("db_port"), 1*time.Second))
 		mux.HandleFunc("/ready", check.ReadyEndpoint)
 	}

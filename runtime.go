@@ -8,13 +8,10 @@ import (
 	"github.com/gofunct/grpc12factor/trace"
 	"github.com/gofunct/grpc12factor/transport"
 	"github.com/soheilhy/cmux"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
-	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -24,66 +21,51 @@ import (
 func init() { config.SetupViper() }
 
 type Runtime struct {
-	Log    *zap.Logger
-	Server *grpc.Server
-	Debug  *http.Server
-	Store  *pg.DB
-	Router *http.ServeMux
-	Closer io.Closer
+	Log      *zap.Logger
+	Server   *grpc.Server
+	Router   *http.ServeMux
+	Debug    *http.Server
+	Store    *pg.DB
+	Listener net.Listener
+	Closer   io.Closer
 }
 
 func NewRuntime() (*Runtime, error) {
 	var err error
-	r := &Runtime{}
-	r.Log, err = zap.NewDevelopment()
+
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		return nil, err
+	}
+	closer, err := trace.NewTracer("grpc_server")
 	if err != nil {
 		return nil, err
 	}
 
-	r.Router = transport.NewMux()
+	router := transport.NewMux()
 
-	r.Debug = &http.Server{
-		Handler: r.Router,
-	}
-	r.Closer, err = trace.NewTracer("grpc_server")
-	if err != nil {
-		return nil, err
-	}
-	r.Store = store.NewStore()
+	listener, err := transport.NewInsecureListener("grpc_port")
 
-	r.Server = transport.NewGrpc()
-
-	return r, err
+	return &Runtime{
+		Log:    logger,
+		Server: transport.NewGrpc(),
+		Router: router,
+		Debug: &http.Server{
+			Handler: router,
+		},
+		Store:    store.NewStore(),
+		Listener: listener,
+		Closer:   closer,
+	}, err
 }
 
 func (r *Runtime) Serve(ctx context.Context) error {
 	group, ctx := errgroup.WithContext(ctx)
-
-	listener, err := net.Listen("tcp", viper.GetString("grpc_port"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	if viper.GetString("grpc_port") == ":443" {
-		var x = viper.GetStringSlice("domains")
-
-		if len(x) < 1 {
-			r.Log.Debug("failed to create tls certificates, must add domains to config.yaml before enabling tls")
-		} else {
-			r.Log.Debug("creating tls certificates and registering listener...")
-			listener = autocert.NewListener(viper.GetStringSlice("domains")...)
-		}
-	}
-
-	m := cmux.New(listener)
+	m := cmux.New(r.Listener)
 	grpcListener := m.Match(cmux.HTTP2HeaderField("content-type", "application/grpc"))
 	httpListener := m.Match(cmux.HTTP1Fast())
-
-	r.Log.Debug("Starting grpc service..", zap.String("grpc_port", viper.GetString("grpc_port")))
 	group.Go(func() error { return r.Server.Serve(grpcListener) })
-
-	r.Log.Debug("Starting debug service..", zap.String("grpc_port", viper.GetString("grpc_port")))
 	group.Go(func() error { return r.Debug.Serve(httpListener) })
-
 	group.Go(func() error { return m.Serve() })
 
 	return group.Wait()
