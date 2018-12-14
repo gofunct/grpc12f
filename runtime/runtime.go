@@ -1,13 +1,15 @@
-package grpc12factor
+package runtime
 
 import (
 	"context"
 	"github.com/go-pg/pg"
-	"github.com/gofunct/grpc12factor/config"
-	"github.com/gofunct/grpc12factor/store"
-	"github.com/gofunct/grpc12factor/trace"
-	"github.com/gofunct/grpc12factor/transport"
+	"github.com/gofunct/grpc12f/store"
+	"github.com/gofunct/grpc12f/trace"
+	"github.com/gofunct/grpc12f/transport"
+	"github.com/gofunct/grpc12f/config"
+	"github.com/prometheus/common/log"
 	"github.com/soheilhy/cmux"
+	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -21,7 +23,6 @@ import (
 func init() { config.SetupViper() }
 
 type Runtime struct {
-	Log      *zap.Logger
 	Server   *grpc.Server
 	Router   *http.ServeMux
 	Debug    *http.Server
@@ -32,22 +33,13 @@ type Runtime struct {
 
 func NewRuntime() (*Runtime, error) {
 	var err error
-
-	logger, err := zap.NewDevelopment()
-	if err != nil {
-		return nil, err
-	}
 	closer, err := trace.NewTracer("grpc_server")
 	if err != nil {
 		return nil, err
 	}
-
 	router := transport.NewMux()
-
 	listener, err := transport.NewInsecureListener("grpc_port")
-
 	return &Runtime{
-		Log:    logger,
 		Server: transport.NewGrpc(),
 		Router: router,
 		Debug: &http.Server{
@@ -65,14 +57,17 @@ func (r *Runtime) Serve(ctx context.Context) error {
 	grpcListener := m.Match(cmux.HTTP2HeaderField("content-type", "application/grpc"))
 	httpListener := m.Match(cmux.HTTP1Fast())
 	group.Go(func() error { return r.Server.Serve(grpcListener) })
+	log.Info("grpc server started successfully-->", viper.GetString("grpc_port"))
 	group.Go(func() error { return r.Debug.Serve(httpListener) })
+	log.Info("debug server started successfully-->", viper.GetString("grpc_port"))
 	group.Go(func() error { return m.Serve() })
+
 
 	return group.Wait()
 }
 
 func (r *Runtime) Deny(msg string, err error) {
-	r.Log.Fatal(msg, zap.Error(err))
+	log.Fatal(msg, zap.Error(err))
 }
 
 func (r *Runtime) Shutdown(ctx context.Context) func() {
@@ -81,12 +76,12 @@ func (r *Runtime) Shutdown(ctx context.Context) func() {
 	return func() {
 		select {
 		case <-signals:
-			r.Log.Debug("signal received, shutting down...")
+			log.Fatal("signal received, shutting down...")
 			r.Server.GracefulStop()
 			r.Debug.Shutdown(ctx)
 			r.Closer.Close()
 		case <-ctx.Done():
-			r.Log.Debug("context done, shutting down...")
+			log.Fatal("context done, shutting down...")
 			r.Server.GracefulStop()
 			r.Debug.Shutdown(ctx)
 			r.Closer.Close()

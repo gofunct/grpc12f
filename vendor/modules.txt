@@ -73,8 +73,8 @@ github.com/matttproud/golang_protobuf_extensions/pbutil
 github.com/mitchellh/mapstructure
 # github.com/opentracing/opentracing-go v1.0.2
 github.com/opentracing/opentracing-go
-github.com/opentracing/opentracing-go/ext
 github.com/opentracing/opentracing-go/log
+github.com/opentracing/opentracing-go/ext
 # github.com/pelletier/go-toml v1.2.0
 github.com/pelletier/go-toml
 # github.com/pkg/errors v0.8.0
@@ -152,12 +152,12 @@ golang.org/x/crypto/pbkdf2
 golang.org/x/crypto/ssh/terminal
 # golang.org/x/net v0.0.0-20181213202711-891ebc4b82d6
 golang.org/x/net/context
+golang.org/x/net/trace
 golang.org/x/net/http2
 golang.org/x/net/http2/hpack
-golang.org/x/net/trace
+golang.org/x/net/internal/timeseries
 golang.org/x/net/http/httpguts
 golang.org/x/net/idna
-golang.org/x/net/internal/timeseries
 # golang.org/x/sync v0.0.0-20181108010431-42b317875d0f
 golang.org/x/sync/errgroup
 # golang.org/x/sys v0.0.0-20181205085412-a5c9d58dba9a
@@ -177,13 +177,10 @@ google.golang.org/genproto/googleapis/rpc/status
 # google.golang.org/grpc v1.17.0
 google.golang.org/grpc
 google.golang.org/grpc/codes
-google.golang.org/grpc/health
-google.golang.org/grpc/health/grpc_health_v1
-google.golang.org/grpc/peer
-google.golang.org/grpc/stats
 google.golang.org/grpc/grpclog
 google.golang.org/grpc/status
-google.golang.org/grpc/metadata
+google.golang.org/grpc/health
+google.golang.org/grpc/health/grpc_health_v1
 google.golang.org/grpc/balancer
 google.golang.org/grpc/balancer/roundrobin
 google.golang.org/grpc/connectivity
@@ -199,10 +196,13 @@ google.golang.org/grpc/internal/grpcrand
 google.golang.org/grpc/internal/grpcsync
 google.golang.org/grpc/internal/transport
 google.golang.org/grpc/keepalive
+google.golang.org/grpc/metadata
 google.golang.org/grpc/naming
+google.golang.org/grpc/peer
 google.golang.org/grpc/resolver
 google.golang.org/grpc/resolver/dns
 google.golang.org/grpc/resolver/passthrough
+google.golang.org/grpc/stats
 google.golang.org/grpc/tap
 google.golang.org/grpc/balancer/base
 google.golang.org/grpc/credentials/internal

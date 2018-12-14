@@ -3,14 +3,11 @@ db_name: postgresdb
 db_port: :5432
 db_user: admin
 grpc_port: :8443
-gw_port: :8080
-jaeger_metrics: false
-live_endpoint: false
+jaeger_metrics: true
+live_endpoint: true
 metrics_endpoint: true
-monitor_peers: true
 pprof_endpoint: true
-ready_endpoint: false
+ready_endpoint: true
 routine_threshold: 300
-swaggerfile: swagger.json
 tls: false
 tracing: true

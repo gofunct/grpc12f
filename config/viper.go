@@ -1,9 +1,8 @@
 package config
 
 import (
+	"github.com/prometheus/common/log"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
-	"log"
 	"os"
 )
 
@@ -23,21 +22,19 @@ func SetupViper() {
 	viper.SetDefault("db_name", "postgresdb")
 	viper.SetDefault("db_user", "admin")
 	viper.SetDefault("grpc_port", ":8443")
-	viper.SetDefault("gw_port", ":8080")
 	viper.SetDefault("routine_threshold", 300)
 	viper.SetDefault("jaeger_metrics", true)
-	viper.SetDefault("swaggerfile", "swagger.json")
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err != nil {
-		log.Println(zap.String("error", "failed to read config file, writing defaults..."))
+		log.Info("failed to read config file, writing defaults...")
 		if err := viper.WriteConfigAs("config.yaml"); err != nil {
 			log.Fatal("failed to write config")
 			os.Exit(1)
 		}
 
 	} else {
-		log.Println("Using config file:", zap.String("config", viper.ConfigFileUsed()))
+		log.Info("Using config file-->", viper.ConfigFileUsed())
 		if err := viper.WriteConfig(); err != nil {
 			log.Fatal("failed to write config file")
 			os.Exit(1)
