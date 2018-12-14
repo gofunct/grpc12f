@@ -2,29 +2,23 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"github.com/gofunct/grpc12factor"
+	"github.com/gofunct/grpc12factor/example/todo"
 	"github.com/prometheus/common/log"
+	"github.com/spf13/viper"
 )
 
 func main() {
 	ctx := context.TODO()
 	run := grpc12factor.NewRuntime()
 	run = grpc12factor.Compose(grpc12factor.NewRuntime())
+	defer run.Shutdown(ctx)
 
-	api := newDemoServer()
-	RegisterDemoServiceServer(run.Server, api)
+	err := todo.RegisterTodoServiceHandlerFromEndpoint(context.Background(), run.Gate, viper.GetString("grpc_port"), run.DialOpts)
+	if err != nil {
+		panic("Cannot serve http api")
+	}
+	run.Store.CreateTable(todo.Todo{}, nil)
+	todo.RegisterTodoServiceServer(run.Server, &todo.Store{DB: run.Store})
 	log.Fatal(run.Serve(ctx))
-}
-
-// DemoServiceServer defines a Server.
-type MockServer struct{}
-
-func newDemoServer() *MockServer {
-	return &MockServer{}
-}
-
-// SayHello implements a interface defined by protobuf.
-func (s *MockServer) SayHello(ctx context.Context, request *HelloRequest) (*HelloResponse, error) {
-	return &HelloResponse{Message: fmt.Sprintf("Hello %s", request.Name)}, nil
 }

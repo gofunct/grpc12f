@@ -6,6 +6,7 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 	"github.com/grpc-ecosystem/go-grpc-middleware/tags"
 	"github.com/grpc-ecosystem/go-grpc-middleware/tracing/opentracing"
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/heptiolabs/healthcheck"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -19,6 +20,7 @@ import (
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"log"
+	"net"
 	"net/http"
 	"net/http/pprof"
 	"time"
@@ -79,9 +81,18 @@ func WithLogger() Option {
 
 func WithRouter() Option {
 	check := healthcheck.NewMetricsHandler(prometheus.DefaultRegisterer, "runtime")
+
 	return func(r *Runtime) *Runtime {
 
 		r.Router = http.NewServeMux()
+		r.Gate = runtime.NewServeMux()
+
+		r.Router.HandleFunc("/swagger.json", func(w http.ResponseWriter, r *http.Request) {
+			http.ServeFile(w, r, viper.GetString("swaggerfile"))
+		})
+		r.Log.Debug("swagger endpoint successfully registered:", zap.String("endpoint", viper.GetString("grpc_port")+"/swagger.json"))
+		r.Router.Handle("/", r.Gate)
+		r.Log.Debug("gateway endpoint successfully registered:", zap.String("endpoint", viper.GetString("grpc_port")+"/"))
 		if viper.GetBool("live_endpoint") {
 			check.AddLivenessCheck("goroutine_threshold", healthcheck.GoroutineCountCheck(viper.GetInt("routine_threshold")))
 			r.Router.HandleFunc("/live", check.LiveEndpoint)
@@ -110,6 +121,10 @@ func WithRouter() Option {
 		if viper.GetBool("metrics_endpoint") {
 			r.Router.Handle("/metrics", promhttp.Handler())
 			r.Log.Debug("metrics endpoint successfully registered:", zap.String("endpoint", viper.GetString("grpc_port")+"/metrics"))
+		}
+
+		r.Debug = &http.Server{
+			Handler: r.Router,
 		}
 
 		return r
@@ -175,5 +190,42 @@ func WithServer() Option {
 		r.Server = s
 		return r
 
+	}
+}
+
+func WithDialer() Option {
+	return func(r *Runtime) *Runtime {
+		metrics := &MetricsIntercept{
+			monitoring: initMonitoring(viper.GetBool("monitor_peers")),
+			trackPeers: viper.GetBool("monitor_peers"),
+		}
+		opts := []grpc_zap.Option{
+			grpc_zap.WithDurationField(func(duration time.Duration) zapcore.Field {
+				return zap.Int64("grpc.time_ns", duration.Nanoseconds())
+			}),
+		}
+		streamInterceptors := grpc.StreamClientInterceptor(grpc_middleware.ChainStreamClient(
+			grpc_zap.StreamClientInterceptor(r.Log, opts...),
+			grpc_opentracing.StreamClientInterceptor(grpc_opentracing.WithTracer(opentracing.GlobalTracer())),
+			metrics.StreamClient(),
+		))
+
+		unaryInterceptors := grpc.UnaryClientInterceptor(grpc_middleware.ChainUnaryClient(
+			grpc_zap.UnaryClientInterceptor(r.Log, opts...),
+			grpc_opentracing.UnaryClientInterceptor(grpc_opentracing.WithTracer(opentracing.GlobalTracer())),
+			metrics.UnaryClient(),
+		))
+
+		prometheus.DefaultRegisterer.Register(metrics)
+
+		r.DialOpts = []grpc.DialOption{
+			grpc.WithInsecure(),
+			grpc.WithUnaryInterceptor(unaryInterceptors),
+			grpc.WithStreamInterceptor(streamInterceptors),
+			grpc.WithStatsHandler(metrics),
+			grpc.WithDialer(metrics.Dialer(func(addr string, timeout time.Duration) (net.Conn, error) {
+				return net.DialTimeout("tcp", addr, timeout)
+			}))}
+		return r
 	}
 }

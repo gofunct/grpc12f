@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-pg/pg"
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/soheilhy/cmux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -16,15 +17,21 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 )
 
+func init() { SetupViper() }
+
 type Runtime struct {
-	Log     *zap.Logger
-	RootCmd *cobra.Command
-	Server  *grpc.Server
-	Store   *pg.DB
-	Router  *http.ServeMux
-	Closer  io.Closer
+	Log      *zap.Logger
+	RootCmd  *cobra.Command
+	Server   *grpc.Server
+	Debug    *http.Server
+	Store    *pg.DB
+	Router   *http.ServeMux
+	Gate     *runtime.ServeMux
+	DialOpts []grpc.DialOption
+	Closer   io.Closer
 }
 
 func NewRuntime() *Runtime {
@@ -53,59 +60,16 @@ func Compose(r *Runtime) *Runtime {
 		o := WithRouter()
 		r = o(r)
 	}
+	if r.DialOpts == nil {
+		o := WithDialer()
+		r = o(r)
+	}
 	if r.Closer == nil {
-		r.Log.Debug("Failed to compose runtime closer, using default...")
 		o := WithTracer()
 		r = o(r)
 	}
 
 	return r
-}
-
-func init() {
-	viper.SetConfigName("config")           // name of config file (without extension)
-	viper.AddConfigPath(os.Getenv("$HOME")) // name of config file (without extension)
-	viper.AddConfigPath(".")                // optionally look for config in the working directory
-	viper.AutomaticEnv()                    // read in environment variables that match
-	viper.SetDefault("tracing", true)
-	viper.SetDefault("tls", false)
-	viper.SetDefault("metrics_endpoint", true)
-	viper.SetDefault("live_endpoint", false)
-	viper.SetDefault("ready_endpoint", false)
-	viper.SetDefault("pprof_endpoint", true)
-	viper.SetDefault("db_host", "localhost")
-	viper.SetDefault("db_port", ":5432")
-	viper.SetDefault("db_name", "postgresdb")
-	viper.SetDefault("db_user", "admin")
-	viper.SetDefault("grpc_port", ":8443")
-	viper.SetDefault("routine_threshold", 300)
-	viper.SetDefault("jaeger_metrics", false)
-	viper.SetDefault("monitor_peers", true)
-
-	// If a config file is found, read it in.
-	if err := viper.ReadInConfig(); err != nil {
-		log.Println(zap.String("error", "failed to read config file, writing defaults..."))
-		if err := viper.WriteConfigAs("config.yaml"); err != nil {
-			log.Fatal("failed to write config")
-			os.Exit(1)
-		}
-
-	} else {
-		log.Println("Using config file:", zap.String("config", viper.ConfigFileUsed()))
-		if err := viper.WriteConfig(); err != nil {
-			log.Fatal("failed to write config file")
-			os.Exit(1)
-		}
-	}
-
-	if viper.GetBool("tls") == true {
-		viper.Set("grpc_port", ":443")
-		if err := viper.WriteConfig(); err != nil {
-			log.Fatal("failed to rewrite config")
-			os.Exit(1)
-		}
-	}
-
 }
 
 func (r *Runtime) Execute() {
@@ -117,9 +81,7 @@ func (r *Runtime) Execute() {
 
 func (r *Runtime) Serve(ctx context.Context) error {
 	group, ctx := errgroup.WithContext(ctx)
-	server := &http.Server{
-		Handler: r.Router,
-	}
+
 	listener, err := net.Listen("tcp", viper.GetString("grpc_port"))
 	if err != nil {
 		log.Fatal(err)
@@ -143,7 +105,7 @@ func (r *Runtime) Serve(ctx context.Context) error {
 	group.Go(func() error { return r.Server.Serve(grpcListener) })
 
 	r.Log.Debug("Starting debug service..", zap.String("grpc_port", viper.GetString("grpc_port")))
-	group.Go(func() error { return server.Serve(httpListener) })
+	group.Go(func() error { return r.Debug.Serve(httpListener) })
 
 	group.Go(func() error { return m.Serve() })
 
@@ -152,4 +114,23 @@ func (r *Runtime) Serve(ctx context.Context) error {
 
 func (r *Runtime) Deny(msg string, err error) {
 	r.Log.Fatal(msg, zap.Error(err))
+}
+
+func (r *Runtime) Shutdown(ctx context.Context) func() {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, os.Kill)
+	return func() {
+		select {
+		case <-signals:
+			r.Log.Debug("signal received, shutting down...")
+			r.Server.GracefulStop()
+			r.Debug.Shutdown(ctx)
+			r.Closer.Close()
+		case <-ctx.Done():
+			r.Log.Debug("context done, shutting down...")
+			r.Server.GracefulStop()
+			r.Debug.Shutdown(ctx)
+			r.Closer.Close()
+		}
+	}
 }

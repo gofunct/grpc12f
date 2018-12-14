@@ -10,5 +10,6 @@ monitor_peers: true
 pprof_endpoint: true
 ready_endpoint: false
 routine_threshold: 300
+swaggerfile: swagger.json
 tls: false
 tracing: true

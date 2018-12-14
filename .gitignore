@@ -2,3 +2,5 @@
 pb-*
 vendor/
 .idea/
+.DS_STORE
+test.pb.go
