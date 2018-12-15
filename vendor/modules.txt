@@ -33,6 +33,8 @@ github.com/golang/protobuf/ptypes
 github.com/golang/protobuf/ptypes/struct
 github.com/golang/protobuf/protoc-gen-go/generator/internal/remap
 github.com/golang/protobuf/protoc-gen-go/plugin
+# github.com/gorilla/handlers v1.4.0
+github.com/gorilla/handlers
 # github.com/grpc-ecosystem/go-grpc-middleware v1.0.0
 github.com/grpc-ecosystem/go-grpc-middleware
 github.com/grpc-ecosystem/go-grpc-middleware/logging/zap
@@ -73,8 +75,8 @@ github.com/matttproud/golang_protobuf_extensions/pbutil
 github.com/mitchellh/mapstructure
 # github.com/opentracing/opentracing-go v1.0.2
 github.com/opentracing/opentracing-go
-github.com/opentracing/opentracing-go/log
 github.com/opentracing/opentracing-go/ext
+github.com/opentracing/opentracing-go/log
 # github.com/pelletier/go-toml v1.2.0
 github.com/pelletier/go-toml
 # github.com/pkg/errors v0.8.0
@@ -147,9 +149,9 @@ go.uber.org/zap/internal/color
 go.uber.org/zap/internal/exit
 # golang.org/x/crypto v0.0.0-20181203042331-505ab145d0a9
 golang.org/x/crypto/acme/autocert
+golang.org/x/crypto/ssh/terminal
 golang.org/x/crypto/acme
 golang.org/x/crypto/pbkdf2
-golang.org/x/crypto/ssh/terminal
 # golang.org/x/net v0.0.0-20181213202711-891ebc4b82d6
 golang.org/x/net/context
 golang.org/x/net/trace

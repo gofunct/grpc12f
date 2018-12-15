@@ -28,6 +28,8 @@ type Runtime struct {
 	Debug    *http.Server
 	Store    *pg.DB
 	Listener net.Listener
+	LogLevel string
+	// Whether to log request header
 	Closer   io.Closer
 }
 
